@@ -1,35 +1,17 @@
-% -------------------------------------------------------------------------
-% Proper Orthogonal Decomposition of a Spiral Wave 
-%
-% This code applies proper orthogonal decomposition (POD) to spacet-time 
-% data obtained from numerically integrating a reaction-diffusion PDE. In
-% particular we focus on a spiral wave, which represents a spatially 
-% coherent, time-periodic structure that simply rotates about a fixed point
-% in space. The POD decomposition shows that most of the `energy' is 
-% contained in the first two modes. These modes can be used to faithfully
-% reconstruct the space-time dynamics of the spiral at a significant
-% reduction in the amount of data stored.
-%
-% This script accompanies Section 1.# of Data-Driven Methods for
-% Dynamic Systems. 
-%
-% Author: Jason J. Bramburger
-% -------------------------------------------------------------------------
-
 % Clean workspace
 clear all; close all; clc
 
 %% General spiral wave data using spectral methods
 
 % System parameters
-d1 = 0.5; 
+d1 = 0.1; 
 d2 = 0.1; 
 beta = 1.0;
 
 tic
 % Spectral method variables
-Tmax = 1;                                                                 % maximum time window to save in one file
-T = 2;                                                                   % time window to simulate
+Tmax = 10;                                                                 % maximum time window to save in one file
+T = 100;                                                                   % time window to simulate
 dt = 0.05;                                                                 % time-step size    
 Ntime = T/dt + 1;                                                          % total number of time states
 Ntime_save_max = Tmax/dt ;                                              % maximum length of saved data file
@@ -74,10 +56,14 @@ K22=reshape(K2,N,1);
 u = zeros(length(kx),length(ky),length(tspan));
 v = zeros(length(kx),length(ky),length(tspan));
 
+Y = Y + 10;
+X = X + 10;
 u0 = tanh(sqrt(X.^2+Y.^2)).*cos(m*angle(X+1i*Y)-(sqrt(X.^2+Y.^2)));         % initial condition in u
 v0 = tanh(sqrt(X.^2+Y.^2)).*sin(m*angle(X+1i*Y)-(sqrt(X.^2+Y.^2)));         % initial condition in v
-u0 = [fliplr(u0) u0];                                                       
-v0 = [fliplr(v0) v0];
+u0 = [fliplr(u0) u0];                                                       % counter-rotation in u    
+v0 = [fliplr(v0) v0];                                                       % counter-rotation in u
+%u0 = [u0 u0];                                                               % co-rotation in u
+%v0 = [v0 v0];                                                               % co-rotation in v
 uv0 = [reshape(fft2(u0),1,N) reshape(fft2(v0),1,N)].';                      % initial condition in Fourier space
 try
     four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(100) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.dat'];
@@ -99,10 +85,9 @@ tspanLast = rmmissing(tspan(end,:));                                       % dea
 if length(tspanLast) >  1
     [t, uvsol] = ode45(@(t,uvt) rdpde(t,uvt,K22,d1,d2,beta,n,N),tspanLast,uvI);
     four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(T) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.dat'];
-    %uvI = uvsol(end,:)';
     writematrix(uvsol, four_file);
 else
-    uvsol = uvI';
+    uvsol = uvsol(end,:);
     four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(T) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.dat'];
     writematrix(uvsol, four_file);
 end
