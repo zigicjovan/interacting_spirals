@@ -28,8 +28,8 @@ beta = 1.0;
 
 tic
 % Spectral method variables
-Tmax = 10;                                                                 % maximum time window to save in one file
-T = 100;                                                                   % time window to simulate
+Tmax = 1;                                                                 % maximum time window to save in one file
+T = 2;                                                                   % time window to simulate
 dt = 0.05;                                                                 % time-step size    
 Ntime = T/dt + 1;                                                          % total number of time states
 Ntime_save_max = Tmax/dt ;                                              % maximum length of saved data file
@@ -53,9 +53,9 @@ else                                                                       % sma
     intervals = 1;
     tspan = 0:dt:T;
 end
-Lx = 20;                                                                    % size of X-dim
-Ly = 20;                                                                    % size of Y-dim 
-n = 128;                                                                    % spatial grid resolution (number of Fourier modes in each dimension)
+Lx = 40;                                                                    % size of X-dim
+Ly = 40;                                                                    % size of Y-dim 
+n = 256;                                                                    % spatial grid resolution (number of Fourier modes in each dimension)
 N = n*n;                                                                    % total number of grid points
 x2 = linspace(-Lx/2,Lx/2,n+1); 
 x = x2(1:2:n); 
@@ -80,7 +80,7 @@ u0 = [fliplr(u0) u0];
 v0 = [fliplr(v0) v0];
 uv0 = [reshape(fft2(u0),1,N) reshape(fft2(v0),1,N)].';                      % initial condition in Fourier space
 try
-    four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(100) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '.dat'];
+    four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(100) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.dat'];
     uv0 = readmatrix(four_file)';
 catch
 end 
@@ -91,21 +91,27 @@ mkdir([pwd  '/data/forward' ]);
 uvI = uv0;
 for sim = 1:intervals-1                                                     % do for all but last interval
     [t, uvsol] = ode45(@(t,uvt) rdpde(t,uvt,K22,d1,d2,beta,n,N),[ tspan(sim,:) tspan(sim,end) + dt ],uvI);
-    four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(tspan(sim,end)) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '.dat'];
+    four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(tspan(sim,end)) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.dat'];
     uvI = conj(uvsol(end,:)');
-    writematrix(uvsol(1:end-1,:), four_file,'Delimiter','tab');
+    writematrix(uvsol(1:end-1,:), four_file);
 end
 tspanLast = rmmissing(tspan(end,:));                                       % deal with last interval which may be different length
 if length(tspanLast) >  1
     [t, uvsol] = ode45(@(t,uvt) rdpde(t,uvt,K22,d1,d2,beta,n,N),tspanLast,uvI);
-    four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(T) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '.dat'];
+    four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(T) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.dat'];
     %uvI = uvsol(end,:)';
-    writematrix(uvsol, four_file,'Delimiter','tab');
+    writematrix(uvsol, four_file);
 else
     uvsol = uvI';
-    four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(T) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '.dat'];
-    writematrix(uvsol, four_file,'Delimiter','tab');
+    four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(T) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.dat'];
+    writematrix(uvsol, four_file);
 end
+%}
+
+%{
+fid = fopen('filename.bin','w');
+fwrite(fid,var,'double');
+fclose(fid);
 %}
 
 toc
@@ -117,7 +123,7 @@ axis tight manual % this ensures that getframe() returns a consistent size
 mkdir([pwd  '/media/movies' ]);
 
 filename = [pwd '/media/movies/phys_n_' num2str(n) ...
-            '_T_' num2str(T) '_dt_' num2str(d1) '_L1_' num2str(Lx,'%.3f') '_L2_' num2str(Ly,'%.3f') '_frames_' num2str(length(t)) '.gif'];
+            '_T_' num2str(T) '_dt_' num2str(d1) '_L1_' num2str(Lx,'%.3f') '_L2_' num2str(Ly,'%.3f') '_frames_' num2str(length(timewindow)) '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.gif'];
 
 title1 = 'Forward-time Ginzburg-Landau solution';
 Ntime = size(uvsol,1);
@@ -156,7 +162,7 @@ v_mean = zeros(round(sqrt((n/2)^2+(n/2)^2)) + 1,Ntime);
 v_meancount = v_mean;
 stopcounter = 1;
 currentTstop = Tstops(stopcounter,1);
-four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(currentTstop) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '.dat'];
+four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(currentTstop) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.dat'];
 uvsol = readmatrix(four_file);
 for i = 1:Ntime
     
@@ -164,7 +170,7 @@ for i = 1:Ntime
     if currentT > currentTstop && currentTstop ~= Tstops(end,1)
         stopcounter = stopcounter + 1;
         currentTstop = Tstops(stopcounter,1);
-        four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(currentTstop) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '.dat'];
+        four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(currentTstop) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.dat'];
         uvsol = readmatrix(four_file);
     end
 
@@ -203,12 +209,12 @@ mkdir([pwd  '/data' ]);
 mkdir([pwd  '/data/normL2' ]);
 mkdir([pwd  '/data/spectrum' ]);
 normL2data_file = [pwd '/data/normL2/normL2_n_' num2str(n) ...
-            '_T_' num2str(T) '_dt_' num2str(d1) '_L1_' num2str(Lx,'%.3f') '_L2_' num2str(Ly,'%.3f') '_frames_' num2str(length(timewindow)) '.dat'];
+            '_T_' num2str(T) '_dt_' num2str(d1) '_L1_' num2str(Lx,'%.3f') '_L2_' num2str(Ly,'%.3f') '_frames_' num2str(length(timewindow)) '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.dat'];
 spectrum_file = [pwd '/data/spectrum/spectrum_n_' num2str(n) ...
-            '_T_' num2str(T) '_dt_' num2str(d1) '_L1_' num2str(Lx,'%.3f') '_L2_' num2str(Ly,'%.3f') '_frames_' num2str(length(timewindow)) '.dat'];
+            '_T_' num2str(T) '_dt_' num2str(d1) '_L1_' num2str(Lx,'%.3f') '_L2_' num2str(Ly,'%.3f') '_frames_' num2str(length(timewindow)) '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.dat'];
 
-writematrix(normL2, normL2data_file,'Delimiter','tab');
-writematrix(v_mean, spectrum_file,'Delimiter','tab');
+writematrix(normL2, normL2data_file);
+writematrix(v_mean, spectrum_file);
 
 %
 %% make gif
@@ -218,7 +224,7 @@ axis tight manual % this ensures that getframe() returns a consistent size
 mkdir([pwd  '/media/movies' ]);
 
 filename = [pwd '/media/movies/diagnostics_n_' num2str(n) ...
-            '_T_' num2str(T) '_Lx' num2str(Lx,'%.0f') '_Ly' num2str(Ly,'%.0f') '_frames_' num2str(length(timewindow)) '.gif'];
+            '_T_' num2str(T) '_Lx' num2str(Lx,'%.0f') '_Ly' num2str(Ly,'%.0f') '_frames_' num2str(length(timewindow)) '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.gif'];
 
 title1 = 'Forward-time Ginzburg-Landau solution';
 set(gcf,'color','white')
@@ -228,7 +234,7 @@ frames = ceil(Ntime/T);
 stopcounter = 1;
 framecounter = 1;
 currentTstop = Tstops(stopcounter,1);
-four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(currentTstop) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '.dat'];
+four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(currentTstop) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.dat'];
 uvsol = readmatrix(four_file);
 for i = 1 : frames-1 : Ntime
 
@@ -236,7 +242,7 @@ for i = 1 : frames-1 : Ntime
     if currentT > currentTstop && currentTstop ~= Tstops(end,1)
         stopcounter = stopcounter + 1;
         currentTstop = Tstops(stopcounter,1);
-        four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(currentTstop) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '.dat'];
+        four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(currentTstop) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.dat'];
         uvsol = readmatrix(four_file);
     end
 
@@ -306,7 +312,7 @@ set(gcf,'color','white')
 set(gca,'color','white')    
 title('Evolution of Fourier spectrum','Interpreter','latex')
 subtitle(['$L_x = ' num2str(Lx,'%.0f') ', L_y = ' num2str(Ly,'%.0f') ', T = ' num2str(T,'%.1f') ', N = ' num2str(n) '$'],'Interpreter','latex','FontSize',14)
-filename = [pwd '/media/energy/wavenumberevol_n' num2str(n) '_T' num2str(T) '_Lx' num2str(Lx,'%.0f') '_Ly' num2str(Ly,'%.0f') ];
+filename = [pwd '/media/energy/wavenumberevol_n' num2str(n) '_T' num2str(T) '_Lx' num2str(Lx,'%.0f') '_Ly' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') ''];
 saveas(h,[filename '.fig'])
 exportgraphics(h,[filename '.pdf'])
 
@@ -323,7 +329,7 @@ set(gcf,'color','white')
 set(gca,'color','white')    
 title('Evolution of $L^2$ norm','Interpreter','latex')
 subtitle(['$L_x = ' num2str(Lx,'%.0f') ', L_y = ' num2str(Ly,'%.0f') ', T = ' num2str(T,'%.1f') ', N = ' num2str(n) '$'],'Interpreter','latex','FontSize',14)
-filename = [pwd '/media/energy/normL2_n' num2str(n) '_T' num2str(T) '_Lx' num2str(Lx,'%.0f') '_Ly' num2str(Ly,'%.0f') ];
+filename = [pwd '/media/energy/normL2_n' num2str(n) '_T' num2str(T) '_Lx' num2str(Lx,'%.0f') '_Ly' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') ''];
 saveas(h,[filename '.fig'])
 exportgraphics(h,[filename '.pdf'])
 
