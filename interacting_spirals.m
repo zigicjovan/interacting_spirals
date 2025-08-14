@@ -20,13 +20,16 @@ continuefrom = 0;                                                           % ch
 transX = 0.00; transY = 0.00;                                               % translate spiral foci
 rotate = 'contra';                                                          % choose spiral rotation: 'co' or 'contra' 
 flip = 'no';                                                                % choose spiral flip: 'yes' or 'no'
-pert = 1; pert_amp = 1/5; x_amp = 1; y_amp = 1;                             % adjust perturbation magnitude
-shiftxr = 0.15; shiftyr = 0.23; shiftxl = 0.00; shiftyl = 0.00;             % translate perturbation foci
+pert = 0; pert_amp = 1/5; x_amp = .5; y_amp = .5;                           % adjust perturbation magnitude
+shiftxr = 0.00; shiftyr = 0.00; shiftxl = 0.00; shiftyl = 0.00;             % translate perturbation foci
+
+eps_sigma = 1.0;                                                            % RHS gaussian width
+eps_amp   = 1.0;                                                            % RHS gaussian amplitude
 
 tic
 % Spectral method variables
 Tmax = 10;                                                                  % maximum time window to save in one file
-T = 20;                                                                    % time window to simulate
+T = 200;                                                                    % time window to simulate
 dt = 0.05;                                                                  % time-step size    
 Ntime = T/dt + 1;                                                           % total number of time states
 Ntime_save_max = Tmax/dt ;                                                  % maximum length of saved data file
@@ -50,10 +53,11 @@ Tstops(end,1) = T;
 % problem and grid parameters
 Lx = 40;                                                                    % size of X-dim
 Ly = 40;                                                                    % size of Y-dim 
-n = 2^9;                                                                    % spatial grid resolution (number of Fourier modes in each dimension)
+n = 2^8;                                                                    % spatial grid resolution (number of Fourier modes in each dimension)
 N = n*n;                                                                    % total number of grid points
 x2 = linspace(-Lx/2,Lx/2,n+1); 
 x = x2(1:2:n); 
+xRHS = x2(1:n);
 y2 = linspace(-Ly/2,Ly/2,n+1); 
 y = y2(1:n); 
 kx = (2*pi/Lx)*[0:(n/2-1) -n/2:-1]; 
@@ -62,6 +66,7 @@ ky = (2*pi/Ly)*[0:(n/2-1) -n/2:-1];
 % Initial Conditions
 m = 1;                                                                      % number of spirals
 [X,Y] = meshgrid(x,y);
+[Xrhs,Yrhs] = meshgrid(xRHS,y);
 [KX,KY] = meshgrid(kx,ky);
 K2 = KX.^2 + KY.^2; 
 K22=reshape(K2,N,1);
@@ -69,9 +74,8 @@ u = zeros(length(kx),length(ky),length(tspan));
 v = zeros(length(kx),length(ky),length(tspan));
 
 if continuefrom > 0
-    %four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(continuefrom) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') '.dat'];
     four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(continuefrom) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') ...
-        '_continuefrom_' num2str(continuefrom,'%.0f') '_transX_' num2str(transX,'%.2f') '_transY_' num2str(transY,'%.2f') '_rot_' rotate '_flip_' flip '_pert_' num2str(pert,'%.0f') '_pertamp_' num2str(pert_amp,'%.1f') '_xamp_' num2str(x_amp,'%.1f') '_yamp_' num2str(y_amp,'%.1f') ...
+        '_continuefrom_' num2str(0,'%.0f') '_transX_' num2str(transX,'%.2f') '_transY_' num2str(transY,'%.2f') '_rot_' rotate '_flip_' flip '_pert_' num2str(pert,'%.0f') '_pertamp_' num2str(pert_amp,'%.1f') '_xamp_' num2str(x_amp,'%.1f') '_yamp_' num2str(y_amp,'%.1f') ...
         '_sxr_' num2str(shiftxr,'%.2f') '_syr_' num2str(shiftyr,'%.2f') '_sxl_' num2str(shiftxl,'%.2f') '_syl_' num2str(shiftyl,'%.2f') '.dat'];
     uv0 = readmatrix(four_file)';
 else
@@ -108,12 +112,17 @@ else
 end 
 
 %
-% Numerical timestepping in Fourier domain
+%% Numerical timestepping in Fourier domain
+
+% Gaussian bump in physical space
+gaussian = eps_amp * exp(-((Xrhs).^2 + (Yrhs).^2) / (2*eps_sigma^2));
+gaussianF = fft2(gaussian);
+
 uvI = uv0;
 toclist = NaN(intervals,1);
 for sim = 1:intervals-1                                                     % do for all but last interval
     mask = dealias_mask(n);
-    [t, uvsol] = ode45(@(t,uvt) rdpde(t,uvt,K22,d1,d2,beta,n,N,mask), [tspan(sim,:) tspan(sim,end) + dt], uvI);
+    [t, uvsol] = ode45(@(t,uvt) rdpde(t,uvt,K22,d1,d2,beta,n,N,mask,gaussianF), [tspan(sim,:) tspan(sim,end) + dt], uvI);
     four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(tspan(sim,end)) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') ...
         '_continuefrom_' num2str(continuefrom,'%.0f') '_transX_' num2str(transX,'%.2f') '_transY_' num2str(transY,'%.2f') '_rot_' rotate '_flip_' flip '_pert_' num2str(pert,'%.0f') '_pertamp_' num2str(pert_amp,'%.1f') '_xamp_' num2str(x_amp,'%.1f') '_yamp_' num2str(y_amp,'%.1f') ...
         '_sxr_' num2str(shiftxr,'%.2f') '_syr_' num2str(shiftyr,'%.2f') '_sxl_' num2str(shiftxl,'%.2f') '_syl_' num2str(shiftyl,'%.2f') '.dat'];
@@ -121,16 +130,13 @@ for sim = 1:intervals-1                                                     % do
     writematrix(uvsol(1:end-1,:), four_file);
     toclist(sim,1) = toc;
     toclist(sim,1) = toclist(sim,1) - sum(toclist(1:sim-1,1));
-    remainingtime = toclist(2,1)*(intervals-sim-1);
-    if isnan(toclist(2,1))
-        remainingtime = toclist(1,1)*(intervals-sim-1);
-    end
+    remainingtime = toclist(sim,1)*(intervals-sim-1);
     disp(['Solved up to T = ' num2str(Tstops(sim) + dt) ' after ' num2str(sum(toclist(1:sim,1)),'%.2f') ' s, estimated remaining time is ' num2str(remainingtime,'%.2f') ' s...']);
 end
 tspanLast = rmmissing(tspan(end,:));                                       % deal with last interval which may be different length
 toclist(intervals) = toc;
 if length(tspanLast) >  1
-    [t, uvsol] = ode45(@(t,uvt) rdpde(t,uvt,K22,d1,d2,beta,n,N),tspanLast,uvI);
+    [t, uvsol] = ode45(@(t,uvt) rdpde(t,uvt,K22,d1,d2,beta,n,N,mask,gaussianF),tspanLast,uvI);
     four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(T) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') ...
         '_continuefrom_' num2str(continuefrom,'%.0f') '_transX_' num2str(transX,'%.2f') '_transY_' num2str(transY,'%.2f') '_rot_' rotate '_flip_' flip '_pert_' num2str(pert,'%.0f') '_pertamp_' num2str(pert_amp,'%.1f') '_xamp_' num2str(x_amp,'%.1f') '_yamp_' num2str(y_amp,'%.1f') ...
         '_sxr_' num2str(shiftxr,'%.2f') '_syr_' num2str(shiftyr,'%.2f') '_sxl_' num2str(shiftxl,'%.2f') '_syl_' num2str(shiftyl,'%.2f') '.dat'];
@@ -154,8 +160,6 @@ fclose(fid);
 
 %% post-processing
 tic
-disp(['Post-processing estimated time is ' num2str(toclist(intervals),'%.2f') ' s.']);
-
 % initial state plot
 four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(Tstops(1)) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') ...
         '_continuefrom_' num2str(continuefrom,'%.0f') '_transX_' num2str(transX,'%.2f') '_transY_' num2str(transY,'%.2f') '_rot_' rotate '_flip_' flip '_pert_' num2str(pert,'%.0f') '_pertamp_' num2str(pert_amp,'%.1f') '_xamp_' num2str(x_amp,'%.1f') '_yamp_' num2str(y_amp,'%.1f') ...
@@ -206,6 +210,7 @@ exportgraphics(h,[filename '.pdf'])
 normL2 = NaN(Ntime,1);
 v_mean = zeros(round(sqrt((n/2)^2+(n/2)^2)) + 1,Ntime);
 v_meancount = v_mean;
+
 stopcounter = 1;
 currentTstop = Tstops(stopcounter,1);
 four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(currentTstop) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') ...
@@ -324,7 +329,6 @@ set(gca,'color','white')
 
 frames = ceil(Ntime/T);
 stopcounter = 1;
-framecounter = 1;
 currentTstop = Tstops(stopcounter,1);
 four_file = [pwd '/data/forward/four_n_' num2str(n) '_T_' num2str(currentTstop) '_Lx_' num2str(Lx,'%.0f') '_Ly_' num2str(Ly,'%.0f') '_d1_' num2str(d1,'%.1f') '_d2_' num2str(d2,'%.1f') ...
         '_continuefrom_' num2str(continuefrom,'%.0f') '_transX_' num2str(transX,'%.2f') '_transY_' num2str(transY,'%.2f') '_rot_' rotate '_flip_' flip '_pert_' num2str(pert,'%.0f') '_pertamp_' num2str(pert_amp,'%.1f') '_xamp_' num2str(x_amp,'%.1f') '_yamp_' num2str(y_amp,'%.1f') ...
@@ -390,7 +394,7 @@ end
 disp(['Post-processing completed after ' num2str(toc,'%.2f') ' s.']);
 
 %% Reaction-diffusion RHS
-function rhs = rdpde(~,uvt,K22,d1,d2,beta,n,N,mask)
+function rhs = rdpde(~,uvt,K22,d1,d2,beta,n,N,mask,gaussianF)
 
     % Calculate u and v terms
     ut = reshape((uvt(1:N)),n,n);
@@ -398,16 +402,20 @@ function rhs = rdpde(~,uvt,K22,d1,d2,beta,n,N,mask)
     u = real(ifft2(ut)); 
     v = real(ifft2(vt));
 
-    % Reaction Terms
+    % Reaction Terms (physical space)
     u3 = u.^3; 
     v3 = v.^3; 
     u2v = (u.^2).*v; 
     uv2 = u.*(v.^2);
 
-    % utrhs, vtrhs are in Fourier space after FFT
+    % Transform to Fourier space for nonlinear terms
     utrhs = fft2(u - u3 - uv2 + beta*u2v + beta*v3);
     vtrhs = fft2(v - u2v - v3 - beta*u3 - beta*uv2);
     
+    % add Gaussian bump
+    utrhs = utrhs + gaussianF;
+    vtrhs = vtrhs + gaussianF;
+
     % Apply dealiasing
     utrhs = utrhs .* mask;
     vtrhs = vtrhs .* mask;
@@ -426,6 +434,6 @@ function mask = dealias_mask(n)
     % Create 2/3-rule mask for n x n grid
     kx = [0:(n/2-1), -n/2:-1];
     [KX,KY] = meshgrid(kx,kx);
-    kmax = n/3;  % 2/3-rule cutoff
+    kmax = n/3;                                                             % 2/3-rule cutoff
     mask = (abs(KX) < kmax) & (abs(KY) < kmax);
 end
